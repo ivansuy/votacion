@@ -27,6 +27,7 @@ export default function Layout() {
     if (path.includes("resultados-votacion")) return "resultados";
     if (path.includes("crear-reporte")) return "reporte";
     if (path.includes("usuarios")) return "usuarios";
+    if (path.includes("gestion-votacion")) return "gestionVotacion";
     return "inicio";
   };
 
@@ -146,6 +147,14 @@ export default function Layout() {
             onClick={() => handleNavigation("/dashboard/crear-votacion")}
           >
             <i className="fas fa-vote-yea"></i> Crear Votación
+          </button>
+          {/* Gestión de Votación */}
+          <div className="sidebar-section-title">GESTIÓN DE VOTACIÓN</div>
+          <button
+            className={`nav-link-custom ${activeSection === "gestionVotacion" ? "active" : ""}`}
+            onClick={() => handleNavigation("/dashboard/gestion-votacion")}
+          >
+            <i className="fas fa-vote-yea"></i> Gestión de Votación
           </button>
           {/* Cargos */}
           <div className="sidebar-section-title">CARGOS</div>

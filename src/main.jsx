@@ -12,6 +12,7 @@ import Usuarios from './pages/administrador/Usuarios'
 import ResultadosVotacion from './pages/administrador/ResultadosVotacion'
 import Registro from './pages/administrador/Registro'
 import Recuperar from './pages/administrador/Recuperar'
+import GestionVotacion from './pages/administrador/GestionVotacion'
 
 
 // Importar página de VOTACIÓN
@@ -43,6 +44,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="resultados-votacion" element={<ResultadosVotacion />} />
           <Route path="crear-reporte" element={<CrearReporte />} />
           <Route path="usuarios" element={<Usuarios />} />
+          <Route path="gestion-votacion" element={<GestionVotacion />} />
         </Route>
       </Routes>
     </BrowserRouter>
