@@ -34,7 +34,7 @@ export default function CrearVotacion() {
     setNuevoCandidato("");
   };
 
-  // 🔹 Crear votación + candidatos + primera ronda
+  // 🔹 Crear votación + candidatos + primera ronda + voto nulo
   const handleCrearVotacion = async () => {
     try {
       if (votacionActiva) {
@@ -71,7 +71,7 @@ export default function CrearVotacion() {
 
       const votacionId = votacionData.id_votacion;
 
-      // 👥 Insertar candidatos
+      // 👥 Insertar candidatos agregados manualmente
       if (candidatos.length > 0) {
         const lista = candidatos.map((c) => ({
           nombre: c.nombre,
@@ -86,12 +86,26 @@ export default function CrearVotacion() {
           alert("⚠️ Error al guardar candidatos: " + errorCand.message);
       }
 
-      // 🔄 Crear primera ronda automáticamente (usando estructura real)
+      // 🚫 Agregar automáticamente el voto nulo para esta votación
+      const { error: errorNulo } = await supabase.from("candidato").insert([
+        {
+          nombre: "Voto Nulo",
+          id_votacion: votacionId,
+        },
+      ]);
+
+      if (errorNulo) {
+        console.error("⚠️ Error al insertar Voto Nulo:", errorNulo.message);
+      } else {
+        console.log("✅ Voto Nulo agregado automáticamente.");
+      }
+
+      // 🔄 Crear primera ronda automáticamente
       const { error: errorRonda } = await supabase.from("ronda").insert([
         {
-          votacion_id: votacionId, // ✅ nombre real del campo FK
-          cargo_id: null, // ✅ se establece como null explícitamente
-          numero_de_ronda: 1, // ✅ nombre correcto
+          votacion_id: votacionId,
+          cargo_id: null,
+          numero_de_ronda: 1,
           estado: "En curso",
           fecha_inicio: new Date(),
         },
@@ -99,7 +113,7 @@ export default function CrearVotacion() {
 
       if (errorRonda)
         console.error("❌ Error creando primera ronda:", errorRonda.message);
-      else alert("✅ Votación creada con su primera ronda activa.");
+      else alert("✅ Votación creada con su primera ronda y voto nulo.");
 
       // 🧹 Limpiar formulario
       setTitulo("");

@@ -102,10 +102,70 @@ export default function GestionVotacion() {
     setCandidatos([]);
   };
 
-  // 🔁 Repetir ronda (pendiente)
-  const handleRepetirRonda = () => {
-    alert("🔁 Función de repetir ronda aún no implementada");
-  };
+// 🔁 Repetir Ronda
+const handleRepetirRonda = async () => {
+  if (!votacionActiva) {
+    alert("⚠️ No hay votación activa para repetir la ronda.");
+    return;
+  }
+
+  try {
+    // 1️⃣ Obtener la ronda actual
+    const { data: rondaActual, error: errorRonda } = await supabase
+      .from("ronda")
+      .select("*")
+      .eq("votacion_id", votacionActiva.id_votacion)
+      .eq("estado", "En curso")
+      .single();
+
+    if (errorRonda || !rondaActual) {
+      alert("⚠️ No hay ronda activa para repetir.");
+      return;
+    }
+
+    // 2️⃣ Cerrar la ronda actual
+    const { error: cerrarError } = await supabase
+      .from("ronda")
+      .update({ estado: "Finalizada", fecha_cierre: new Date() })
+      .eq("id_ronda", rondaActual.id_ronda);
+
+    if (cerrarError) {
+      alert("❌ Error al cerrar la ronda actual.");
+      return;
+    }
+
+    // 3️⃣ Crear nueva ronda (incrementa número)
+    const nuevoNumero = (rondaActual.numero_de_ronda || 1) + 1;
+    const { error: crearError } = await supabase.from("ronda").insert([
+      {
+        votacion_id: votacionActiva.id_votacion,
+        cargo_id: null,
+        numero_de_ronda: nuevoNumero,
+        estado: "En curso",
+        fecha_inicio: new Date(),
+      },
+    ]);
+
+    if (crearError) {
+      alert("❌ Error al crear la nueva ronda.");
+      return;
+    }
+
+    // 4️⃣ Limpiar votos anteriores
+    const { error: borrarError } = await supabase
+      .from("voto")
+      .delete()
+      .eq("id_votacion", votacionActiva.id_votacion);
+
+    if (borrarError) {
+      console.error("Error limpiando votos:", borrarError.message);
+    }
+
+    alert(`✅ Se ha creado la Ronda ${nuevoNumero} y los votos fueron reiniciados.`);
+  } catch (e) {
+    console.error("❌ Error general al repetir ronda:", e.message);
+  }
+};
 
   if (loading) {
     return <div className="text-center mt-5">Cargando votación activa...</div>;
@@ -166,12 +226,10 @@ export default function GestionVotacion() {
               >
                 🔒 Cerrar Votación
               </button>
-              <button
-                className="btn btn-warning text-white"
-                onClick={handleRepetirRonda}
-              >
-                🔁 Repetir Ronda
-              </button>
+          <button className="btn btn-warning" onClick={handleRepetirRonda}>
+          🔁 Repetir Ronda
+          </button>
+
             </div>
           </div>
         </div>
