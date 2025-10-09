@@ -1,6 +1,49 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../../Config/supabaseClient";
 
+// 🧩 Modal elegante (tipo tarjeta)
+function ModalAlert({ show, type, title, message, onClose }) {
+  if (!show) return null;
+
+  const icons = {
+    success: "✅",
+    error: "❌",
+    warning: "⚠️",
+    info: "ℹ️",
+  };
+
+  const colors = {
+    success: "bg-success text-white",
+    error: "bg-danger text-white",
+    warning: "bg-warning text-dark",
+    info: "bg-primary text-white",
+  };
+
+  return (
+    <div
+      className="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center"
+      style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2000 }}
+    >
+      <div
+        className="card shadow-lg text-center"
+        style={{ width: "420px", borderRadius: "10px" }}
+      >
+        <div className={`card-header fw-bold ${colors[type]}`}>
+          {icons[type]} {title}
+        </div>
+        <div className="card-body">
+          <p className="fs-6">{message}</p>
+          <div className="d-flex justify-content-center mt-3">
+            <button className="btn btn-success px-4" onClick={onClose}>
+              Aceptar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CrearVotacion() {
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
@@ -8,6 +51,18 @@ export default function CrearVotacion() {
   const [candidatos, setCandidatos] = useState([]);
   const [nuevoCandidato, setNuevoCandidato] = useState("");
   const [votacionActiva, setVotacionActiva] = useState(null);
+
+  // 🔔 Modal state
+  const [modal, setModal] = useState({
+    show: false,
+    type: "info",
+    title: "",
+    message: "",
+  });
+
+  const showModal = (type, title, message) =>
+    setModal({ show: true, type, title, message });
+  const closeModal = () => setModal({ ...modal, show: false });
 
   // 🔹 Verificar si hay votación activa
   useEffect(() => {
@@ -19,7 +74,11 @@ export default function CrearVotacion() {
         .order("fecha_inicio", { ascending: false })
         .limit(1);
 
-      if (error) console.error("Error buscando votación activa:", error);
+      if (error) {
+        console.error("Error buscando votación activa:", error);
+        showModal("error", "Error", "No se pudo verificar la votación activa.");
+      }
+
       if (activaData && activaData.length > 0) {
         setVotacionActiva(activaData[0]);
       }
@@ -29,23 +88,44 @@ export default function CrearVotacion() {
 
   // 🔹 Agregar candidato temporalmente
   const handleAgregarCandidato = () => {
-    if (nuevoCandidato.trim() === "") return;
+    if (nuevoCandidato.trim() === "") {
+      showModal("warning", "Campo vacío", "Debes ingresar un nombre para el candidato.");
+      return;
+    }
+
     setCandidatos([...candidatos, { nombre: nuevoCandidato }]);
+    showModal("success", "Candidato Agregado", `Se agregó a ${nuevoCandidato} correctamente.`);
     setNuevoCandidato("");
   };
 
-  // 🔹 Crear votación + candidatos + primera ronda + voto nulo
+  // 🔹 Crear votación + candidatos + ronda + voto nulo
   const handleCrearVotacion = async () => {
     try {
       if (votacionActiva) {
-        alert(
-          `⚠️ Ya existe una votación activa (${votacionActiva.titulo}). Cierra esa votación antes de crear otra.`
+        showModal(
+          "warning",
+          "Votación activa existente",
+          `Ya existe una votación activa (${votacionActiva.titulo}). Debes cerrarla antes de crear otra.`
         );
         return;
       }
 
       if (!titulo || !totalVotantes) {
-        alert("⚠️ Debes completar el título y el número de votantes esperados.");
+        showModal(
+          "warning",
+          "Campos incompletos",
+          "Debes completar el título y el número de votantes esperados."
+        );
+        return;
+      }
+
+      // 🚫 Nueva validación: mínimo 3 candidatos
+      if (candidatos.length < 3) {
+        showModal(
+          "warning",
+          "Faltan candidatos",
+          "Debes agregar al menos 3 candidatos antes de crear la votación."
+        );
         return;
       }
 
@@ -65,39 +145,31 @@ export default function CrearVotacion() {
         .single();
 
       if (votacionError) {
-        alert("❌ Error al crear la votación: " + votacionError.message);
+        showModal("error", "Error", "No se pudo crear la votación.");
         return;
       }
 
       const votacionId = votacionData.id_votacion;
 
-      // 👥 Insertar candidatos agregados manualmente
-      if (candidatos.length > 0) {
-        const lista = candidatos.map((c) => ({
-          nombre: c.nombre,
-          id_votacion: votacionId,
-        }));
+      // 👥 Insertar candidatos
+      const lista = candidatos.map((c) => ({
+        nombre: c.nombre,
+        id_votacion: votacionId,
+      }));
 
-        const { error: errorCand } = await supabase
-          .from("candidato")
-          .insert(lista);
-
-        if (errorCand)
-          alert("⚠️ Error al guardar candidatos: " + errorCand.message);
+      const { error: errorCand } = await supabase.from("candidato").insert(lista);
+      if (errorCand) {
+        showModal("warning", "Error al guardar", "Ocurrió un problema al guardar los candidatos.");
+        return;
       }
 
-      // 🚫 Agregar automáticamente el voto nulo para esta votación
+      // 🚫 Agregar “Voto Nulo”
       const { error: errorNulo } = await supabase.from("candidato").insert([
-        {
-          nombre: "Voto Nulo",
-          id_votacion: votacionId,
-        },
+        { nombre: "Voto Nulo", id_votacion: votacionId },
       ]);
 
       if (errorNulo) {
-        console.error("⚠️ Error al insertar Voto Nulo:", errorNulo.message);
-      } else {
-        console.log("✅ Voto Nulo agregado automáticamente.");
+        console.error("Error insertando voto nulo:", errorNulo.message);
       }
 
       // 🔄 Crear primera ronda automáticamente
@@ -111,9 +183,15 @@ export default function CrearVotacion() {
         },
       ]);
 
-      if (errorRonda)
-        console.error("❌ Error creando primera ronda:", errorRonda.message);
-      else alert("✅ Votación creada con su primera ronda y voto nulo.");
+      if (errorRonda) {
+        showModal("warning", "Error creando ronda", "La votación se creó, pero no la primera ronda.");
+      } else {
+        showModal(
+          "success",
+          "Votación Creada",
+          "La votación fue creada exitosamente con su primera ronda y voto nulo."
+        );
+      }
 
       // 🧹 Limpiar formulario
       setTitulo("");
@@ -122,7 +200,7 @@ export default function CrearVotacion() {
       setCandidatos([]);
     } catch (e) {
       console.error("❌ Error general:", e.message);
-      alert("Ocurrió un error inesperado al crear la votación.");
+      showModal("error", "Error inesperado", "Ocurrió un error al crear la votación.");
     }
   };
 
@@ -192,6 +270,15 @@ export default function CrearVotacion() {
           </ul>
         </>
       )}
+
+      {/* Modal elegante */}
+      <ModalAlert
+        show={modal.show}
+        type={modal.type}
+        title={modal.title}
+        message={modal.message}
+        onClose={closeModal}
+      />
     </div>
   );
 }

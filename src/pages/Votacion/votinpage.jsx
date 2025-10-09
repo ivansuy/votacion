@@ -1,6 +1,52 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../../Config/supabaseClient";
 
+// 🧩 Modal elegante tipo tarjeta (como el resto del sistema)
+function ModalAlert({ show, type, title, message, onClose }) {
+  if (!show) return null;
+
+  const icons = {
+    success: "✅",
+    error: "❌",
+    warning: "⚠️",
+    info: "ℹ️",
+  };
+
+  const colors = {
+    success: "bg-success text-white",
+    error: "bg-danger text-white",
+    warning: "bg-warning text-dark",
+    info: "bg-primary text-white",
+  };
+
+  return (
+    <div
+      className="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center"
+      style={{
+        backgroundColor: "rgba(0,0,0,0.5)",
+        zIndex: 2000,
+      }}
+    >
+      <div
+        className="card shadow-lg text-center"
+        style={{ width: "420px", borderRadius: "10px" }}
+      >
+        <div className={`card-header fw-bold ${colors[type]}`}>
+          {icons[type]} {title}
+        </div>
+        <div className="card-body">
+          <p className="fs-6">{message}</p>
+          <div className="d-flex justify-content-center mt-3">
+            <button className="btn btn-success px-4" onClick={onClose}>
+              Aceptar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function VotingPage() {
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [candidates, setCandidates] = useState([]);
@@ -8,7 +54,20 @@ function VotingPage() {
   const [rondaActiva, setRondaActiva] = useState(null);
   const [isSending, setIsSending] = useState(false);
 
-  // 🔁 Obtener datos de votación y candidatos (incluyendo Voto Nulo)
+  // Estado del modal
+  const [modal, setModal] = useState({
+    show: false,
+    type: "info",
+    title: "",
+    message: "",
+  });
+
+  const showModal = (type, title, message) => {
+    setModal({ show: true, type, title, message });
+  };
+  const closeModal = () => setModal({ ...modal, show: false });
+
+  // 🔁 Obtener datos de votación y candidatos
   const fetchCandidatos = async () => {
     try {
       // 🔹 Buscar votación activa
@@ -19,7 +78,6 @@ function VotingPage() {
         .single();
 
       if (errorV || !votacion) {
-        console.warn("⚠️ No hay votación activa:", errorV?.message);
         setCandidates([]);
         setActiveVote(null);
         setRondaActiva(null);
@@ -37,7 +95,6 @@ function VotingPage() {
         .single();
 
       if (!ronda || errRonda) {
-        console.warn("⚠️ No hay ronda activa");
         setRondaActiva(null);
         setCandidates([]);
         return;
@@ -45,26 +102,25 @@ function VotingPage() {
 
       setRondaActiva(ronda);
 
-      // 🔹 Traer candidatos sin cargo + el voto nulo
+      // 🔹 Traer candidatos sin cargo + voto nulo
       const { data, error } = await supabase
         .from("candidato")
         .select("id_candidato, nombre, id_cargo")
         .eq("id_votacion", votacion.id_votacion)
-        .or("id_cargo.is.null,nombre.eq.Voto Nulo"); // ✅ incluye el nulo
+        .or("id_cargo.is.null,nombre.eq.Voto Nulo");
 
       if (error) {
         console.error("❌ Error cargando candidatos:", error.message);
+        showModal("error", "Error", "No se pudieron cargar los candidatos.");
         return;
       }
 
-      // 🔹 Formatear datos para mostrar
+      // 🔹 Formatear candidatos
       const formatted = data.map((c) => ({
         id: c.id_candidato,
         name: c.nombre,
         description:
-          c.nombre === "Voto Nulo"
-            ? "Opción de voto nulo"
-            : "Candidato activo",
+          c.nombre === "Voto Nulo" ? "Opción de voto nulo" : "Candidato activo",
         color: c.nombre === "Voto Nulo" ? "#6c757d" : "#007bff",
         icon: c.nombre === "Voto Nulo" ? "🚫" : "🗳️",
       }));
@@ -72,36 +128,34 @@ function VotingPage() {
       setCandidates(formatted);
     } catch (err) {
       console.error("Error general en fetchCandidatos:", err.message);
+      showModal("error", "Error", "No se pudo conectar con el servidor.");
     }
   };
 
-  // 🔁 Actualizar automáticamente cada 2 segundos
+  // 🔁 Actualizar cada 2 segundos
   useEffect(() => {
     fetchCandidatos();
     const interval = setInterval(fetchCandidatos, 2000);
     return () => clearInterval(interval);
   }, []);
 
-  // 🗳️ Enviar voto (soporta voto nulo)
+  // 🗳️ Enviar voto
   const handleEnviarVoto = async () => {
     if (!selectedCandidate) {
-      alert("⚠️ Selecciona un candidato o voto nulo antes de votar.");
+      showModal("warning", "Candidato no seleccionado", "Selecciona un candidato o voto nulo antes de votar.");
       return;
     }
+
     if (!activeVote || !rondaActiva) {
-      alert("⚠️ No hay votación o ronda activa.");
+      showModal("warning", "Votación no disponible", "No hay una votación o ronda activa en este momento.");
       return;
     }
 
     setIsSending(true);
 
-    // Buscar si el voto es nulo
-    const candidatoSeleccionado = candidates.find(
-      (c) => c.id === selectedCandidate
-    );
+    const candidatoSeleccionado = candidates.find((c) => c.id === selectedCandidate);
     const esVotoNulo = candidatoSeleccionado?.name === "Voto Nulo";
 
-    // Registrar el voto
     const { error } = await supabase.from("voto").insert([
       {
         id_votacion: activeVote,
@@ -116,10 +170,10 @@ function VotingPage() {
 
     if (error) {
       console.error("❌ Error al registrar voto:", error.message);
-      alert("❌ Error al registrar el voto. Intenta nuevamente.");
+      showModal("error", "Error al votar", "Ocurrió un error al registrar tu voto. Intenta nuevamente.");
     } else {
-      alert("✅ ¡Voto registrado correctamente!");
-      setSelectedCandidate(null); // 🔄 Limpia selección
+      showModal("success", "Voto Registrado", "¡Tu voto fue registrado correctamente!");
+      setSelectedCandidate(null);
     }
   };
 
@@ -193,6 +247,15 @@ function VotingPage() {
           </div>
         </>
       )}
+
+      {/* Modal elegante de mensajes */}
+      <ModalAlert
+        show={modal.show}
+        type={modal.type}
+        title={modal.title}
+        message={modal.message}
+        onClose={closeModal}
+      />
     </div>
   );
 }
