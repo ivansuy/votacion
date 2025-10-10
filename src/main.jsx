@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 // Importar páginas de ADMINISTRADOR
 import Login from './pages/administrador/Login'
@@ -14,7 +14,6 @@ import Registro from './pages/administrador/Registro'
 import Recuperar from './pages/administrador/Recuperar'
 import GestionVotacion from './pages/administrador/GestionVotacion'
 
-
 // Importar página de VOTACIÓN
 import VotingPage from './pages/Votacion/votinpage.jsx'
 
@@ -26,18 +25,21 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
       <Routes>
-        {/* RUTA PRINCIPAL - Página de votación para usuarios */}
-        <Route path="/" element={<VotingPage />} />
-        
-        {/* RUTA DE LOGIN - Para administradores */}
+        {/* 🔹 Redirigir desde / al login */}
+        <Route path="/" element={<Navigate to="/login" replace />} />
+
+        {/* RUTA DE LOGIN */}
         <Route path="/login" element={<Login />} />
-        
-        {/* NUEVAS RUTAS */}
+
+        {/* PÁGINAS DE AUTENTICACIÓN */}
         <Route path="/Registro" element={<Registro />} />
         <Route path="/Recuperar" element={<Recuperar />} />
 
-        {/* RUTAS PROTEGIDAS DEL ADMIN - Con Layout */}
-          <Route path="/dashboard" element={<Layout />}>
+        {/* RUTA DE VOTACIÓN */}
+        <Route path="/votacion" element={<VotingPage />} />
+
+        {/* RUTAS DEL ADMIN */}
+        <Route path="/dashboard" element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="crear-votacion" element={<CrearVotacion />} />
           <Route path="crear-cargo" element={<CrearCargo />} />

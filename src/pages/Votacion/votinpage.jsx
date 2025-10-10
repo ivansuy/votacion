@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../../Config/supabaseClient";
 
-// 🧩 Modal elegante tipo tarjeta (como el resto del sistema)
+// 🧩 Modal elegante
 function ModalAlert({ show, type, title, message, onClose }) {
   if (!show) return null;
 
@@ -22,10 +22,7 @@ function ModalAlert({ show, type, title, message, onClose }) {
   return (
     <div
       className="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center"
-      style={{
-        backgroundColor: "rgba(0,0,0,0.5)",
-        zIndex: 2000,
-      }}
+      style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2000 }}
     >
       <div
         className="card shadow-lg text-center"
@@ -54,7 +51,7 @@ function VotingPage() {
   const [rondaActiva, setRondaActiva] = useState(null);
   const [isSending, setIsSending] = useState(false);
 
-  // Estado del modal
+  // Modal
   const [modal, setModal] = useState({
     show: false,
     type: "info",
@@ -67,17 +64,16 @@ function VotingPage() {
   };
   const closeModal = () => setModal({ ...modal, show: false });
 
-  // 🔁 Obtener datos de votación y candidatos
+  // 🔁 Cargar votación y candidatos
   const fetchCandidatos = async () => {
     try {
-      // 🔹 Buscar votación activa
-      const { data: votacion, error: errorV } = await supabase
+      const { data: votacion } = await supabase
         .from("votacion")
         .select("id_votacion, titulo, estado")
         .eq("estado", "Activa")
         .single();
 
-      if (errorV || !votacion) {
+      if (!votacion) {
         setCandidates([]);
         setActiveVote(null);
         setRondaActiva(null);
@@ -86,15 +82,14 @@ function VotingPage() {
 
       setActiveVote(votacion.id_votacion);
 
-      // 🔹 Buscar ronda activa
-      const { data: ronda, error: errRonda } = await supabase
+      const { data: ronda } = await supabase
         .from("ronda")
         .select("id_ronda, numero_de_ronda, estado")
         .eq("votacion_id", votacion.id_votacion)
         .eq("estado", "En curso")
         .single();
 
-      if (!ronda || errRonda) {
+      if (!ronda) {
         setRondaActiva(null);
         setCandidates([]);
         return;
@@ -102,7 +97,6 @@ function VotingPage() {
 
       setRondaActiva(ronda);
 
-      // 🔹 Traer candidatos sin cargo + voto nulo
       const { data, error } = await supabase
         .from("candidato")
         .select("id_candidato, nombre, id_cargo")
@@ -115,8 +109,14 @@ function VotingPage() {
         return;
       }
 
-      // 🔹 Formatear candidatos
-      const formatted = data.map((c) => ({
+      // 🔹 Mantener "Voto Nulo" siempre al final
+      const sorted = data.sort((a, b) => {
+        if (a.nombre.toLowerCase() === "voto nulo") return 1;
+        if (b.nombre.toLowerCase() === "voto nulo") return -1;
+        return a.nombre.localeCompare(b.nombre);
+      });
+
+      const formatted = sorted.map((c) => ({
         id: c.id_candidato,
         name: c.nombre,
         description:
@@ -132,7 +132,6 @@ function VotingPage() {
     }
   };
 
-  // 🔁 Actualizar cada 2 segundos
   useEffect(() => {
     fetchCandidatos();
     const interval = setInterval(fetchCandidatos, 2000);
@@ -189,56 +188,66 @@ function VotingPage() {
         </p>
       ) : (
         <>
-          <div className="d-flex flex-wrap justify-content-center mt-4">
+          {/* 📋 Lista vertical de candidatos */}
+          <ul className="list-group mb-4 shadow-sm">
             {candidates.map((candidate) => (
-              <div
+              <li
                 key={candidate.id}
-                className={`card m-2 text-center shadow ${
-                  selectedCandidate === candidate.id ? "border-success" : ""
+                className={`list-group-item d-flex justify-content-between align-items-center ${
+                  selectedCandidate === candidate.id ? "list-group-item-success" : ""
                 }`}
                 style={{
-                  width: "14rem",
                   cursor: "pointer",
                   transition: "0.3s",
+                  fontWeight: candidate.name === "Voto Nulo" ? "bold" : "normal",
                 }}
                 onClick={() => setSelectedCandidate(candidate.id)}
               >
-                <div
-                  className={`card-body ${
-                    candidate.name === "Voto Nulo"
-                      ? "bg-secondary text-white"
-                      : selectedCandidate === candidate.id
-                      ? "bg-success text-white"
-                      : "bg-primary text-white"
-                  } rounded-top`}
-                >
-                  <h5 className="card-title text-uppercase">
-                    {candidate.icon} {candidate.name}
-                  </h5>
-                </div>
-                <div className="card-footer bg-light">
-                  {selectedCandidate === candidate.id ? (
-                    <span className="badge bg-success">✅ Seleccionado</span>
-                  ) : (
-                    <span
-                      className={`badge ${
+                <div className="d-flex align-items-center gap-3">
+                  <span
+                    className="fs-4"
+                    style={{
+                      color: candidate.name === "Voto Nulo" ? "#6c757d" : "#007bff",
+                    }}
+                  >
+                    {candidate.icon}
+                  </span>
+                  <div>
+                    <div
+                      className={`fw-semibold ${
+                        candidate.name === "Voto Nulo" ? "text-secondary" : ""
+                      }`}
+                    >
+                      {candidate.name.toUpperCase()}
+                    </div>
+                    <small
+                      className={`${
                         candidate.name === "Voto Nulo"
-                          ? "bg-secondary"
-                          : "bg-primary"
+                          ? "text-muted"
+                          : "text-primary"
                       }`}
                     >
                       {candidate.description}
-                    </span>
-                  )}
+                    </small>
+                  </div>
                 </div>
-              </div>
+
+                {/* Estado visual */}
+                {selectedCandidate === candidate.id ? (
+                  <span className="badge bg-success">✅ Seleccionado</span>
+                ) : candidate.name === "Voto Nulo" ? (
+                  <span className="badge bg-secondary">Voto nulo</span>
+                ) : (
+                  <span className="badge bg-primary">Activo</span>
+                )}
+              </li>
             ))}
-          </div>
+          </ul>
 
           {/* 🔘 Botón enviar voto */}
           <div className="text-center mt-4">
             <button
-              className="btn btn-primary w-100"
+              className="btn btn-primary w-100 py-2"
               onClick={handleEnviarVoto}
               disabled={isSending}
             >
@@ -248,7 +257,7 @@ function VotingPage() {
         </>
       )}
 
-      {/* Modal elegante de mensajes */}
+      {/* Modal de mensajes */}
       <ModalAlert
         show={modal.show}
         type={modal.type}
