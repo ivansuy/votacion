@@ -1,19 +1,37 @@
-// src/pages/administrador/Dashboard.jsx
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
+import { supabase } from "../../Config/supabaseClient";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleNavigation = (path) => {
-    navigate(path);
-  };
+  const [stats, setStats] = useState({
+    votacionesActivas: 0,
+    votosRealizados: 0,
+    reportesGenerados: 0,
+    usuariosRegistrados: 0,
+  });
 
-const handleLogout = () => {
-  localStorage.removeItem('authToken');
-  localStorage.removeItem('userData');
-  window.location.href = "/login";
-};
+  const [topCandidatos, setTopCandidatos] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const handleNavigation = (path) => navigate(path);
+
+  const handleLogout = () => {
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("userData");
+    window.location.href = "/login";
+  };
 
   const getActiveSection = () => {
     const path = location.pathname;
@@ -29,6 +47,54 @@ const handleLogout = () => {
 
   const activeSection = getActiveSection();
 
+  // 🔹 Consultar estadísticas desde Supabase
+  const fetchStats = async () => {
+    setLoading(true);
+    try {
+      const { count: votacionesActivas } = await supabase
+        .from("votacion")
+        .select("*", { count: "exact", head: true })
+        .eq("estado", "Activa");
+
+      const { count: votosRealizados } = await supabase
+        .from("voto")
+        .select("*", { count: "exact", head: true });
+
+      const { count: usuariosRegistrados } = await supabase
+        .from("usuario")
+        .select("*", { count: "exact", head: true });
+
+      // Si tienes tabla de reportes
+      const { count: reportesGenerados } = await supabase
+        .from("reporte")
+        .select("*", { count: "exact", head: true })
+        .maybeSingle();
+
+      setStats({
+        votacionesActivas: votacionesActivas || 0,
+        votosRealizados: votosRealizados || 0,
+        reportesGenerados: reportesGenerados || 0,
+        usuariosRegistrados: usuariosRegistrados || 0,
+      });
+
+      // 🔹 Top 5 candidatos más votados
+      const { data: top } = await supabase
+        .from("candidato")
+        .select("nombre, votos_recibidos")
+        .order("votos_recibidos", { ascending: false })
+        .limit(5);
+
+      setTopCandidatos(top || []);
+    } catch (error) {
+      console.error("Error cargando estadísticas:", error);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (activeSection === "inicio") fetchStats();
+  }, [activeSection]);
+
   return (
     <div className="d-flex vh-100">
       <style>{`
@@ -43,15 +109,13 @@ const handleLogout = () => {
           left: 0;
           top: 0;
           z-index: 1000;
-          overflow-y: auto; /* ✅ scroll en el menú lateral */
+          overflow-y: auto;
         }
-
         .sidebar-header {
           padding: 25px 20px;
           border-bottom: 1px solid rgba(255,255,255,0.1);
           text-align: center;
         }
-
         .nav-link-custom {
           color: rgba(255,255,255,0.8);
           padding: 15px 20px;
@@ -66,52 +130,27 @@ const handleLogout = () => {
           width: 100%;
           text-align: left;
         }
-
         .nav-link-custom:hover,
         .nav-link-custom.active {
           color: white;
           background: rgba(255,255,255,0.1);
           border-left-color: #fdbb2d;
         }
-
-        .nav-link-custom.logout:hover {
-          background: rgba(220, 53, 69, 0.2);
-          border-left-color: #dc3545;
-        }
-
-        .nav-link-custom i {
-          width: 25px;
-          margin-right: 10px;
-        }
-
-        .main-content {
-          flex: 1;
-          background: #f8f9fa;
-          margin-left: 280px;
-          padding: 0;
-          height: 100vh;       /* ✅ siempre ocupa el alto de pantalla */
-          overflow-y: auto;    /* ✅ scroll en el contenido derecho */
-        }
-
-        .content-area {
-          padding: 30px;
-        }
-
-        .sidebar-section-title {
-          padding: 10px 20px;
-          color: rgba(255,255,255,0.6);
-          font-size: 0.85rem;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 1px;
-        }
-
         .logout-section {
           margin-top: auto;
           padding-top: 20px;
           border-top: 1px solid rgba(255,255,255,0.1);
         }
-
+        .main-content {
+          flex: 1;
+          background: #f8f9fa;
+          margin-left: 280px;
+          padding: 0;
+          overflow-y: auto;
+        }
+        .content-area {
+          padding: 30px;
+        }
         .welcome-card {
           background: linear-gradient(135deg, #1a2a6c, #b21f1f);
           color: white;
@@ -120,58 +159,26 @@ const handleLogout = () => {
           margin-bottom: 30px;
           box-shadow: 0 5px 15px rgba(0,0,0,0.2);
         }
-
         .stats-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
           gap: 20px;
           margin-bottom: 30px;
         }
-
         .stat-card {
           background: white;
           border-radius: 12px;
           padding: 25px;
           box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-          border-left: 5px solid #1a2a6c;
-          transition: transform 0.3s;
           text-align: center;
+          transition: transform 0.3s;
         }
-
-        .stat-card:hover {
-          transform: translateY(-5px);
-        }
-
-        .stat-card.votes { border-left-color: #b21f1f; }
-        .stat-card.reports { border-left-color: #fdbb2d; }
-        .stat-card.users { border-left-color: #28a745; }
-
-        .stat-number {
-          font-size: 2.5rem;
-          font-weight: bold;
-          margin-bottom: 5px;
-        }
-
-        .stat-title {
-          color: #6c757d;
-          font-weight: 600;
-          font-size: 1.1rem;
-        }
-
-        .page-content {
+        .stat-card:hover { transform: translateY(-5px); }
+        .chart-container {
           background: white;
           border-radius: 12px;
-          padding: 30px;
+          padding: 25px;
           box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-        }
-
-        /* Estilos para las secciones hijas */
-        .route-content {
-          background: white;
-          border-radius: 12px;
-          padding: 30px;
-          box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-          min-height: calc(100vh - 60px); /* ✅ asegura altura mínima */
         }
       `}</style>
 
@@ -184,64 +191,31 @@ const handleLogout = () => {
         </div>
 
         <nav className="nav flex-column py-3" style={{ flex: 1 }}>
-          <div className="sidebar-section-title">Navegación</div>
           <button
             className={`nav-link-custom ${activeSection === "inicio" ? "active" : ""}`}
             onClick={() => handleNavigation("/dashboard")}
           >
             <i className="fas fa-home"></i> Panel Principal
           </button>
-
-          <div className="sidebar-section-title">Votaciones</div>
           <button
             className={`nav-link-custom ${activeSection === "votacion" ? "active" : ""}`}
             onClick={() => handleNavigation("/dashboard/crear-votacion")}
           >
             <i className="fas fa-vote-yea"></i> Crear Votación
           </button>
-          {/* Gestión de Votación */}
-          <div className="sidebar-section-title">GESTIÓN DE VOTACIÓN</div>
           <button
             className={`nav-link-custom ${activeSection === "gestionVotacion" ? "active" : ""}`}
             onClick={() => handleNavigation("/dashboard/gestion-votacion")}
           >
-            <i className="fas fa-vote-yea"></i> Gestión de Votación
+            <i className="fas fa-tasks"></i> Gestión de Votación
           </button>
-
-          <div className="sidebar-section-title">Cargos</div>
-          <button
-            className={`nav-link-custom ${activeSection === "crearCargo" ? "active" : ""}`}
-            onClick={() => handleNavigation("/dashboard/crear-cargo")}
-          >
-            <i className="fas fa-briefcase"></i> Crear Cargo
-          </button>
-
-          <div className="sidebar-section-title">Resultados de Votación</div>
-          <button
-            className={`nav-link-custom ${activeSection === "resultados" ? "active" : ""}`}
-            onClick={() => handleNavigation("/dashboard/resultados-votacion")}
-          >
-            <i className="fas fa-poll"></i> Resultados de Votación
-          </button>
-
-          <div className="sidebar-section-title">Reportes</div>
-          <button
-            className={`nav-link-custom ${activeSection === "reporte" ? "active" : ""}`}
-            onClick={() => handleNavigation("/dashboard/crear-reporte")}
-          >
-            <i className="fas fa-chart-bar"></i> Crear Reporte
-          </button>
-
-          <div className="sidebar-section-title">Usuarios</div>
           <button
             className={`nav-link-custom ${activeSection === "usuarios" ? "active" : ""}`}
             onClick={() => handleNavigation("/dashboard/usuarios")}
           >
             <i className="fas fa-users"></i> Usuarios
           </button>
-
           <div className="logout-section">
-            <div className="sidebar-section-title">Cerrar Sesión</div>
             <button className="nav-link-custom logout" onClick={handleLogout}>
               <i className="fas fa-sign-out-alt"></i> Cerrar Sesión
             </button>
@@ -257,33 +231,54 @@ const handleLogout = () => {
               <div className="welcome-card">
                 <h2 className="fw-bold">¡Bienvenido al Sistema de Votación!</h2>
                 <p className="mb-0">
-                  Gestiona las votaciones de la iglesia de manera eficiente y segura. 
-                  Selecciona una opción en el menú para comenzar.
+                  Gestiona las votaciones de la iglesia de manera eficiente y segura.
                 </p>
               </div>
 
-              <div className="stats-grid">
-                <div className="stat-card">
-                  <div className="stat-number" style={{ color: "#1a2a6c" }}>3</div>
-                  <div className="stat-title">Votaciones Activas</div>
-                  <small className="text-muted">En curso este mes</small>
-                </div>
-                <div className="stat-card votes">
-                  <div className="stat-number" style={{ color: "#b21f1f" }}>156</div>
-                  <div className="stat-title">Votos Realizados</div>
-                  <small className="text-muted">Total en sistema</small>
-                </div>
-                <div className="stat-card reports">
-                  <div className="stat-number" style={{ color: "#fdbb2d" }}>12</div>
-                  <div className="stat-title">Reportes Generados</div>
-                  <small className="text-muted">Este trimestre</small>
-                </div>
-                <div className="stat-card users">
-                  <div className="stat-number" style={{ color: "#28a745" }}>89</div>
-                  <div className="stat-title">Usuarios Registrados</div>
-                  <small className="text-muted">Miembros activos</small>
-                </div>
-              </div>
+              {loading ? (
+                <div className="text-center text-muted">Cargando estadísticas...</div>
+              ) : (
+                <>
+                  <div className="stats-grid">
+                    <div className="stat-card">
+                      <h3>{stats.votacionesActivas}</h3>
+                      <p className="text-muted">Votaciones Activas</p>
+                    </div>
+                    <div className="stat-card">
+                      <h3>{stats.votosRealizados}</h3>
+                      <p className="text-muted">Votos Realizados</p>
+                    </div>
+                    <div className="stat-card">
+                      <h3>{stats.reportesGenerados}</h3>
+                      <p className="text-muted">Reportes Generados</p>
+                    </div>
+                    <div className="stat-card">
+                      <h3>{stats.usuariosRegistrados}</h3>
+                      <p className="text-muted">Usuarios Registrados</p>
+                    </div>
+                  </div>
+
+                  {/* 📊 Top candidatos */}
+                  <div className="chart-container">
+                    <h5 className="fw-bold mb-3">
+                      Top 5 Candidatos con más votos
+                    </h5>
+                    {topCandidatos.length === 0 ? (
+                      <p className="text-muted">No hay candidatos con votos aún.</p>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={topCandidatos}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="nombre" />
+                          <YAxis />
+                          <Tooltip />
+                          <Bar dataKey="votos_recibidos" fill="#b21f1f" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </>
+              )}
             </>
           )}
 

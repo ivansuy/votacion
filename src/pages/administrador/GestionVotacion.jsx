@@ -68,7 +68,6 @@ export default function GestionVotacion() {
   const [cargos, setCargos] = useState([]);
   const [nuevoCandidato, setNuevoCandidato] = useState("");
   const [loading, setLoading] = useState(true);
-
   const [modal, setModal] = useState({
     show: false,
     type: "info",
@@ -81,7 +80,8 @@ export default function GestionVotacion() {
     setModal({ show: true, type, title, message, onConfirm });
   const closeModal = () => setModal({ ...modal, show: false });
 
-  const fetchVotacionActiva = async () => {
+  // 🔹 Cargar datos base
+  const fetchBaseData = async () => {
     setLoading(true);
 
     const { data: votaciones } = await supabase
@@ -113,9 +113,37 @@ export default function GestionVotacion() {
     setLoading(false);
   };
 
+  // 🔁 Actualizar votos en tiempo real
+  const updateVotos = async () => {
+    if (!votacionActiva) return;
+
+    const { data: votos } = await supabase
+      .from("voto")
+      .select("id_candidato")
+      .eq("id_votacion", votacionActiva.id_votacion);
+
+    const conteo = {};
+    votos?.forEach((v) => {
+      conteo[v.id_candidato] = (conteo[v.id_candidato] || 0) + 1;
+    });
+
+    setCandidatos((prev) =>
+      prev.map((c) => ({
+        ...c,
+        votos: conteo[c.id_candidato] || 0,
+      }))
+    );
+  };
+
   useEffect(() => {
-    fetchVotacionActiva();
+    fetchBaseData();
   }, []);
+
+  useEffect(() => {
+    if (!votacionActiva) return;
+    const interval = setInterval(updateVotos, 2000);
+    return () => clearInterval(interval);
+  }, [votacionActiva]);
 
   // ➕ Agregar candidato
   const handleAgregarCandidato = async () => {
@@ -131,7 +159,12 @@ export default function GestionVotacion() {
 
     const { data, error } = await supabase
       .from("candidato")
-      .insert([{ nombre: nuevoCandidato.trim(), id_votacion: votacionActiva.id_votacion }])
+      .insert([
+        {
+          nombre: nuevoCandidato.trim(),
+          id_votacion: votacionActiva.id_votacion,
+        },
+      ])
       .select();
 
     if (error) {
@@ -141,19 +174,11 @@ export default function GestionVotacion() {
 
     const nuevo = data[0];
     setNuevoCandidato("");
-
-    // Mantener “Voto Nulo” al final
-    setCandidatos((prev) => {
-      const votoNulo = prev.find((c) => c.nombre.toLowerCase() === "voto nulo");
-      const otros = prev.filter((c) => c.nombre.toLowerCase() !== "voto nulo");
-      const nuevaLista = votoNulo ? [...otros, nuevo, votoNulo] : [...prev, nuevo];
-      return nuevaLista;
-    });
-
-    showModal("success", "Candidato Agregado", "El candidato fue agregado correctamente.");
+    setCandidatos((prev) => [...prev, nuevo]);
+    showModal("success", "Candidato agregado", "El candidato fue agregado correctamente.");
   };
 
-  // 🗑️ Eliminar candidato (solo si no tiene cargo)
+  // 🗑️ Eliminar candidato
   const handleEliminarCandidato = (idCandidato, nombre, idCargo) => {
     if (nombre.toLowerCase() === "voto nulo") {
       showModal("warning", "No permitido", "No puedes eliminar el candidato 'Voto Nulo'.");
@@ -185,7 +210,7 @@ export default function GestionVotacion() {
     );
   };
 
-  // 🧑‍💼 Asignar cargo (sin crear ronda automática)
+  // 🧑‍💼 Asignar cargo
   const handleAsignarCargo = async (idCandidato, idCargo) => {
     if (!idCargo) return;
 
@@ -219,7 +244,10 @@ export default function GestionVotacion() {
 
         const { error } = await supabase
           .from("candidato")
-          .update({ id_cargo: idCargo })
+          .update({
+            id_cargo: idCargo,
+            votos_recibidos: candidatoActual.votos || 0,
+          })
           .eq("id_candidato", idCandidato);
 
         if (error) {
@@ -228,12 +256,12 @@ export default function GestionVotacion() {
         }
 
         showModal("success", "Cargo Asignado", "El cargo fue asignado correctamente.");
-        fetchVotacionActiva();
+        fetchBaseData();
       }
     );
   };
 
-  // 🏁 Cerrar votación
+  // 🔒 Cerrar votación
   const handleCerrarVotacion = async () => {
     showModal(
       "confirm",
@@ -259,7 +287,7 @@ export default function GestionVotacion() {
     );
   };
 
-  // 🔁 Repetir ronda manualmente
+  // 🔁 Nueva ronda
   const handleRepetirRonda = async () => {
     showModal(
       "confirm",
@@ -315,21 +343,34 @@ export default function GestionVotacion() {
           <div className="card-body">
             <h4>{votacionActiva.titulo}</h4>
             <p>{votacionActiva.descripcion}</p>
-            <p>
-              <strong>Estado:</strong> {votacionActiva.estado} <br />
-              <strong>Votantes esperados:</strong> {votacionActiva.total_votantes} <br />
-              <strong>Fecha inicio:</strong>{" "}
-              {new Date(votacionActiva.fecha_inicio).toLocaleDateString()}
-            </p>
 
-            <h5 className="mt-4">🧑‍🤝‍🧑 Candidatos</h5>
+            {/* ➕ Agregar nuevo candidato */}
+            <div className="d-flex mb-3">
+              <input
+                type="text"
+                className="form-control me-2"
+                placeholder="Nombre del candidato"
+                value={nuevoCandidato}
+                onChange={(e) => setNuevoCandidato(e.target.value)}
+              />
+              <button className="btn btn-success" onClick={handleAgregarCandidato}>
+                ➕ Agregar
+              </button>
+            </div>
+
+            <h5 className="mt-3">🧑‍🤝‍🧑 Candidatos</h5>
             <ul className="list-group mb-4">
               {candidatos.map((c) => (
                 <li
                   key={c.id_candidato}
                   className="list-group-item d-flex justify-content-between align-items-center"
                 >
-                  <span>{c.nombre}</span>
+                  <span>
+                    <strong>{c.nombre}</strong>{" "}
+                    <span className="badge bg-primary ms-2">
+                      🗳️ {c.votos || 0} votos
+                    </span>
+                  </span>
                   <div className="d-flex align-items-center gap-2">
                     <select
                       className="form-select w-auto"
@@ -345,6 +386,7 @@ export default function GestionVotacion() {
                       ))}
                     </select>
 
+                    {/* 🗑️ Botón eliminar */}
                     {c.nombre.toLowerCase() !== "voto nulo" && (
                       <button
                         className="btn btn-outline-danger btn-sm"
@@ -360,6 +402,7 @@ export default function GestionVotacion() {
               ))}
             </ul>
 
+            {/* 🔹 Botones inferiores */}
             <div className="d-flex gap-3">
               <button className="btn btn-danger" onClick={handleCerrarVotacion}>
                 🔒 Cerrar Votación

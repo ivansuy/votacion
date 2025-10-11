@@ -93,9 +93,23 @@ export default function CrearVotacion() {
       return;
     }
 
+    // Evitar duplicados
+    if (candidatos.some(c => c.nombre.toLowerCase() === nuevoCandidato.toLowerCase())) {
+      showModal("warning", "Duplicado", "Este candidato ya fue agregado.");
+      return;
+    }
+
     setCandidatos([...candidatos, { nombre: nuevoCandidato }]);
     showModal("success", "Candidato Agregado", `Se agregó a ${nuevoCandidato} correctamente.`);
     setNuevoCandidato("");
+  };
+
+  // 🔹 Eliminar candidato antes de crear la votación
+  const handleEliminarCandidato = (index) => {
+    const nombreEliminado = candidatos[index].nombre;
+    const listaActualizada = candidatos.filter((_, i) => i !== index);
+    setCandidatos(listaActualizada);
+    showModal("info", "Candidato Eliminado", `Se eliminó a ${nombreEliminado} de la lista.`);
   };
 
   // 🔹 Crear votación + candidatos + ronda + voto nulo
@@ -119,7 +133,6 @@ export default function CrearVotacion() {
         return;
       }
 
-      // 🚫 Nueva validación: mínimo 3 candidatos
       if (candidatos.length < 3) {
         showModal(
           "warning",
@@ -164,16 +177,12 @@ export default function CrearVotacion() {
       }
 
       // 🚫 Agregar “Voto Nulo”
-      const { error: errorNulo } = await supabase.from("candidato").insert([
+      await supabase.from("candidato").insert([
         { nombre: "Voto Nulo", id_votacion: votacionId },
       ]);
 
-      if (errorNulo) {
-        console.error("Error insertando voto nulo:", errorNulo.message);
-      }
-
       // 🔄 Crear primera ronda automáticamente
-      const { error: errorRonda } = await supabase.from("ronda").insert([
+      await supabase.from("ronda").insert([
         {
           votacion_id: votacionId,
           cargo_id: null,
@@ -183,15 +192,11 @@ export default function CrearVotacion() {
         },
       ]);
 
-      if (errorRonda) {
-        showModal("warning", "Error creando ronda", "La votación se creó, pero no la primera ronda.");
-      } else {
-        showModal(
-          "success",
-          "Votación Creada",
-          "La votación fue creada exitosamente con su primera ronda y voto nulo."
-        );
-      }
+      showModal(
+        "success",
+        "Votación Creada",
+        "La votación fue creada exitosamente con su primera ronda y voto nulo."
+      );
 
       // 🧹 Limpiar formulario
       setTitulo("");
@@ -264,7 +269,13 @@ export default function CrearVotacion() {
                 key={i}
                 className="list-group-item d-flex justify-content-between align-items-center"
               >
-                {c.nombre}
+                <span>{c.nombre}</span>
+                <button
+                  className="btn btn-sm btn-outline-danger"
+                  onClick={() => handleEliminarCandidato(i)}
+                >
+                  🗑️ Eliminar
+                </button>
               </li>
             ))}
           </ul>

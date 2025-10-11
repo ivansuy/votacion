@@ -11,7 +11,7 @@ export default function CrearReporte() {
   const [loading, setLoading] = useState(true);
   const [tituloVotacion, setTituloVotacion] = useState("");
 
-  // 🔹 Cargar votaciones
+  // 🔹 Cargar votaciones cerradas
   const fetchVotaciones = async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -24,62 +24,112 @@ export default function CrearReporte() {
     setLoading(false);
   };
 
-  // 🔹 Cargar detalle (ganadores + votos)
+  // 🔹 Cargar detalle de una votación seleccionada
   const fetchDetalleVotacion = async (id_votacion) => {
-    const vot = votaciones.find((v) => v.id_votacion === id_votacion);
-    setTituloVotacion(vot?.titulo || "");
-    setVotacionSeleccionada(id_votacion);
+    try {
+      setDetalles([]);
+      setVotacionSeleccionada(id_votacion);
 
-    const { data: candidatos } = await supabase
-      .from("candidato")
-      .select("id_candidato, nombre, id_cargo, cargo: id_cargo (nombre_cargo)")
-      .eq("id_votacion", id_votacion)
-      .not("id_cargo", "is", null);
+      const { data: votacion } = await supabase
+        .from("votacion")
+        .select("*")
+        .eq("id_votacion", id_votacion)
+        .single();
 
-    const { data: votos } = await supabase
-      .from("voto")
-      .select("id_candidato", { count: "exact" })
-      .eq("id_votacion", id_votacion)
-      .not("id_candidato", "is", null);
+      setTituloVotacion(votacion.titulo);
 
-    const conteo = {};
-    votos?.forEach((v) => {
-      conteo[v.id_candidato] = (conteo[v.id_candidato] || 0) + 1;
-    });
+      const { data: candidatos, error: candError } = await supabase
+        .from("candidato")
+        .select(`
+          id_candidato,
+          nombre,
+          votos_recibidos,
+          cargo:id_cargo (nombre_cargo)
+        `)
+        .eq("id_votacion", id_votacion);
 
-    const resultados = candidatos?.map((c) => ({
-      nombre: c.nombre,
-      cargo: c.cargo?.nombre_cargo || "Sin cargo",
-      votos: conteo[c.id_candidato] || 0,
-    }));
+      if (candError) {
+        console.error("Error al cargar candidatos:", candError.message);
+        return;
+      }
 
-    setDetalles(resultados || []);
+      const resultadosFinales = candidatos.map((cand) => ({
+        nombre: cand.nombre,
+        cargo: cand.cargo?.nombre_cargo?.trim() || "No asignado",
+        votos: cand.votos_recibidos || 0,
+      }));
+
+      // 🔽 Orden jerárquico exacto solicitado
+      const ordenJerarquico = [
+        "presidente",
+        "vicepresidente",
+        "secretario",
+        "tesorero",
+        "vocal 1",
+        "vocal 2",
+        "vocal 3",
+        "vocal 4",
+        "vocal 5",
+        "no asignado",
+      ];
+
+      // 🧠 Función para normalizar texto
+      const normalizar = (texto) =>
+        texto
+          ?.toString()
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "") // quita tildes
+          .replace(/\s+/g, " ") // limpia espacios extra
+          .trim();
+
+      // 🧩 Función para obtener posición en jerarquía
+      const obtenerIndiceCargo = (cargo) => {
+        const limpio = normalizar(cargo);
+        for (let i = 0; i < ordenJerarquico.length; i++) {
+          const base = normalizar(ordenJerarquico[i]);
+          if (limpio.includes(base)) return i;
+        }
+        return ordenJerarquico.length;
+      };
+
+      // 📋 Ordenar según jerarquía exacta
+      const resultadosOrdenados = [...resultadosFinales].sort(
+        (a, b) => obtenerIndiceCargo(a.cargo) - obtenerIndiceCargo(b.cargo)
+      );
+
+      setDetalles(resultadosOrdenados);
+    } catch (e) {
+      console.error("Error al cargar detalle de votación:", e.message);
+    }
   };
 
   // 🔹 Generar PDF
   const generarPDF = () => {
     const fechaActual = new Date().toLocaleDateString();
+
     const cuerpoTabla = [
       [
         { text: "Candidato", style: "tableHeader" },
         { text: "Cargo", style: "tableHeader" },
-        { text: "Votos", style: "tableHeader" },
+        { text: "Votos recibidos", style: "tableHeader" },
       ],
       ...detalles.map((d) => [d.nombre, d.cargo, d.votos.toString()]),
     ];
 
+    const totalVotos = detalles.reduce((acc, d) => acc + d.votos, 0);
+    cuerpoTabla.push([
+      { text: "TOTAL VOTOS", colSpan: 2, alignment: "right", bold: true },
+      {},
+      { text: totalVotos.toString(), bold: true },
+    ]);
+
     const docDefinition = {
       pageSize: "A4",
-      pageMargins: [40, 100, 40, 60], // margen superior para encabezado
+      pageMargins: [40, 100, 40, 60],
       header: {
         margin: [40, 20, 40, 0],
         columns: [
-          // {
-          //   image: "", // puedes agregar base64 de logo si deseas
-          //   width: 50,
-          //   height: 50,
-          //   margin: [0, 10, 10, 0],
-          // },
           {
             text: [
               { text: "IGLESIA ASAMBLEA DE DIOS\n", style: "headerTitle" },
@@ -105,20 +155,9 @@ export default function CrearReporte() {
         },
       ],
       styles: {
-        headerTitle: {
-          fontSize: 14,
-          bold: true,
-          color: "#2c3e50",
-        },
-        subHeader: {
-          fontSize: 10,
-          italics: true,
-          color: "#555",
-        },
-        headerInfo: {
-          fontSize: 9,
-          color: "#444",
-        },
+        headerTitle: { fontSize: 14, bold: true, color: "#2c3e50" },
+        subHeader: { fontSize: 10, italics: true, color: "#555" },
+        headerInfo: { fontSize: 9, color: "#444" },
         title: {
           fontSize: 13,
           bold: true,
@@ -186,7 +225,7 @@ export default function CrearReporte() {
         </tbody>
       </table>
 
-      {/* Detalles */}
+      {/* Resultados detallados */}
       {votacionSeleccionada && (
         <div className="mt-5">
           <h5>🧾 Resultados de la votación</h5>
@@ -206,13 +245,21 @@ export default function CrearReporte() {
                   </td>
                 </tr>
               ) : (
-                detalles.map((d, i) => (
-                  <tr key={i}>
-                    <td>{d.nombre}</td>
-                    <td>{d.cargo}</td>
-                    <td>{d.votos}</td>
+                <>
+                  {detalles.map((d, i) => (
+                    <tr key={i}>
+                      <td>{d.nombre}</td>
+                      <td>{d.cargo}</td>
+                      <td>{d.votos}</td>
+                    </tr>
+                  ))}
+                  <tr className="fw-bold table-light">
+                    <td colSpan="2" className="text-end">
+                      TOTAL VOTOS
+                    </td>
+                    <td>{detalles.reduce((acc, d) => acc + d.votos, 0)}</td>
                   </tr>
-                ))
+                </>
               )}
             </tbody>
           </table>
@@ -220,7 +267,10 @@ export default function CrearReporte() {
           <div className="d-flex gap-2">
             <button
               className="btn btn-outline-secondary"
-              onClick={() => setVotacionSeleccionada(null)}
+              onClick={() => {
+                setVotacionSeleccionada(null);
+                setDetalles([]);
+              }}
             >
               ← Regresar
             </button>

@@ -2,30 +2,85 @@ import { supabase } from "../../Config/supabaseClient";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+// 🧩 Modal de alertas reutilizable
+function ModalAlert({ show, type, title, message, onClose }) {
+  if (!show) return null;
+
+  const icons = {
+    success: "✅",
+    error: "❌",
+    warning: "⚠️",
+    info: "ℹ️",
+  };
+
+  const colors = {
+    success: "bg-success text-white",
+    error: "bg-danger text-white",
+    warning: "bg-warning text-dark",
+    info: "bg-primary text-white",
+  };
+
+  return (
+    <div
+      className="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center"
+      style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2000 }}
+    >
+      <div
+        className="card shadow-lg text-center"
+        style={{ width: "400px", borderRadius: "10px" }}
+      >
+        <div className={`card-header fw-bold ${colors[type]}`}>
+          {icons[type]} {title}
+        </div>
+        <div className="card-body">
+          <p className="fs-6">{message}</p>
+          <button className="btn btn-success px-4" onClick={onClose}>
+            Aceptar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Login() {
   const [user, setUser] = useState("");
   const [pass, setPass] = useState("");
   const navigate = useNavigate();
 
+  // Estado para mostrar alertas
+  const [modal, setModal] = useState({
+    show: false,
+    type: "info",
+    title: "",
+    message: "",
+  });
+
+  const showModal = (type, title, message) =>
+    setModal({ show: true, type, title, message });
+  const closeModal = () => setModal({ ...modal, show: false });
+
   const handleLogin = async (e) => {
     e.preventDefault();
 
-    // Consultamos la tabla "usuario" en Supabase
     const { data, error } = await supabase
       .from("usuario")
       .select("*")
       .eq("nombre", user)
       .eq("contrasena", pass)
-      .single(); // esperamos solo un registro
+      .single();
 
     if (error || !data) {
-      alert("❌ Credenciales incorrectas");
+      showModal("error", "Acceso Denegado", "❌ Credenciales incorrectas. Inténtalo de nuevo.");
     } else {
-      alert("✅ Bienvenido " + data.nombre);
-      // Guardamos datos en localStorage (opcional)
+      showModal("success", "Bienvenido", `Hola ${data.nombre}, acceso autorizado.`);
+      // Guardar sesión
       localStorage.setItem("usuario", JSON.stringify(data));
-      // Redirigimos al dashboard
-      navigate("/dashboard");
+      // Redirigir tras un pequeño retraso para que el usuario vea el modal
+      setTimeout(() => {
+        closeModal();
+        navigate("/dashboard");
+      }, 1500);
     }
   };
 
@@ -35,11 +90,10 @@ export default function Login() {
       style={{
         background: "linear-gradient(135deg, #1a2a6c 0%, #b21f1f 50%, #fdbb2d 100%)",
         backgroundSize: "400% 400%",
-        animation: "gradient 15s ease infinite"
+        animation: "gradient 15s ease infinite",
       }}
     >
-      {/* 👇 todo tu CSS y JSX lo dejo igual */}
-      <style>{` 
+      <style>{`
         @keyframes gradient {
           0% { background-position: 0% 50%; }
           50% { background-position: 100% 50%; }
@@ -57,12 +111,9 @@ export default function Login() {
         .btn-login:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2); }
         .link-custom { color: #1a2a6c; text-decoration: none; font-weight: 500; transition: color 0.3s; }
         .link-custom:hover { color: #b21f1f; }
-        .divider { display: flex; align-items: center; margin: 20px 0; }
-        .divider::before, .divider::after { content: ""; flex: 1; border-bottom: 1px solid #dee2e6; }
-        .divider-text { padding: 0 10px; color: #6c757d; font-size: 14px; }
       `}</style>
 
-      {/* 👇 aquí no tocamos nada de tu estructura */}
+      {/* TARJETA LOGIN */}
       <div className="card login-card p-4" style={{ width: "400px" }}>
         <div className="church-header text-center">
           <div className="mb-3">
@@ -116,25 +167,21 @@ export default function Login() {
             </div>
           </div>
 
-          <button
-            type="submit"
-            className="btn btn-login w-100 text-white fw-bold mb-3"
-          >
+          <button type="submit" className="btn btn-login w-100 text-white fw-bold mb-3">
             Ingresar
           </button>
 
-         <div className="text-center mb-3">
-        <a href="/Recuperar" className="link-custom" style={{ fontSize: "14px" }}>
-        ¿Olvidaste tu contraseña?
-       </a>
-        </div>
+          <div className="text-center mb-3">
+            <a href="/Recuperar" className="link-custom" style={{ fontSize: "14px" }}>
+              ¿Olvidaste tu contraseña?
+            </a>
+          </div>
 
-      <div className="text-center">
-      <a href="/Registro" className="link-custom" style={{ fontSize: "14px" }}>
-      Crear cuenta
-      </a>
-      </div>
-
+          <div className="text-center">
+            <a href="/Registro" className="link-custom" style={{ fontSize: "14px" }}>
+              Crear cuenta
+            </a>
+          </div>
         </form>
 
         <div className="text-center mt-4">
@@ -143,6 +190,15 @@ export default function Login() {
           </small>
         </div>
       </div>
+
+      {/* MODAL DE ALERTA */}
+      <ModalAlert
+        show={modal.show}
+        type={modal.type}
+        title={modal.title}
+        message={modal.message}
+        onClose={closeModal}
+      />
     </div>
   );
 }
