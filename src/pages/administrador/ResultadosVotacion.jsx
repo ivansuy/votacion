@@ -15,9 +15,9 @@ export default function ResultadosVotacion() {
   const [resultados, setResultados] = useState([]);
   const [votacionActiva, setVotacionActiva] = useState(null);
   const [rondaActiva, setRondaActiva] = useState(null);
+  const [totalVotos, setTotalVotos] = useState({ esperado: 0, recibido: 0 });
   const [loading, setLoading] = useState(true);
 
-  // 🔹 Consultar resultados en tiempo real
   const fetchResultados = async () => {
     try {
       // 1️⃣ Buscar votación activa
@@ -37,6 +37,9 @@ export default function ResultadosVotacion() {
 
       setVotacionActiva(votacion);
 
+      // 🔹 Usamos el campo correcto: total_votantes
+      const totalEsperado = votacion.total_votantes || 0;
+
       // 2️⃣ Buscar ronda activa
       const { data: ronda, error: rondaError } = await supabase
         .from("ronda")
@@ -54,7 +57,7 @@ export default function ResultadosVotacion() {
 
       setRondaActiva(ronda);
 
-      // 3️⃣ Traer candidatos sin cargo o con nombre "Voto Nulo"
+      // 3️⃣ Traer candidatos
       const { data: candidatos, error: candidatosError } = await supabase
         .from("candidato")
         .select("id_candidato, nombre, id_cargo")
@@ -67,7 +70,7 @@ export default function ResultadosVotacion() {
         return;
       }
 
-      // 4️⃣ Obtener todos los votos de la ronda activa
+      // 4️⃣ Obtener votos de la ronda activa
       const { data: votos, error: votosError } = await supabase
         .from("voto")
         .select("id_candidato, es_nulo")
@@ -79,7 +82,7 @@ export default function ResultadosVotacion() {
         return;
       }
 
-      // 5️⃣ Contar votos (incluyendo nulos)
+      // 5️⃣ Contar votos
       const conteo = {};
       votos.forEach((v) => {
         if (v.es_nulo) {
@@ -90,23 +93,29 @@ export default function ResultadosVotacion() {
       });
 
       // 6️⃣ Unir nombre con número de votos
-      const resultadosFinales = candidatos
-        .filter((c) => c.nombre !== null)
-        .map((c) => ({
-          nombre: c.nombre,
-          votos:
-            c.nombre === "Voto Nulo"
-              ? conteo["nulo"] || 0
-              : conteo[c.id_candidato] || 0,
-        }));
+      const resultadosFinales = candidatos.map((c) => ({
+        nombre: c.nombre,
+        votos:
+          c.nombre === "Voto Nulo"
+            ? conteo["nulo"] || 0
+            : conteo[c.id_candidato] || 0,
+      }));
 
-      // 7️⃣ Ordenar: normales primero, luego el voto nulo
+      // 7️⃣ Ordenar resultados
       const ordenados = [
         ...resultadosFinales.filter((r) => r.nombre !== "Voto Nulo"),
         ...resultadosFinales.filter((r) => r.nombre === "Voto Nulo"),
       ];
 
+      // 8️⃣ Calcular total real
+      const totalVotosRecibidos = ordenados.reduce(
+        (sum, r) => sum + r.votos,
+        0
+      );
+
+      // Guardar resultados y totales
       setResultados(ordenados);
+      setTotalVotos({ esperado: totalEsperado, recibido: totalVotosRecibidos });
       setLoading(false);
     } catch (err) {
       console.error("Error general:", err.message);
@@ -157,7 +166,7 @@ export default function ResultadosVotacion() {
             ))}
           </ul>
 
-          {/* 🔹 Gráfica de barras */}
+          {/* 🔹 Gráfica */}
           <div style={{ width: "100%", height: 300 }}>
             <ResponsiveContainer>
               <BarChart
@@ -173,19 +182,34 @@ export default function ResultadosVotacion() {
                   dataKey="votos"
                   fill="#007bff"
                   label={{ position: "top" }}
-                >
-                  {resultados.map((entry, index) => (
-                    <cell
-                      key={`cell-${index}`}
-                      fill={
-                        entry.nombre === "Voto Nulo" ? "#6c757d" : "#007bff"
-                      }
-                    />
-                  ))}
-                </Bar>
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
+
+          {/* 🔹 Texto informativo debajo de la gráfica */}
+          {totalVotos.esperado > 0 && (
+            <div className="text-center mt-3">
+              {totalVotos.recibido < totalVotos.esperado ? (
+                <p className="text-warning fw-bold">
+                  🕓 Faltan {totalVotos.esperado - totalVotos.recibido} voto
+                  {totalVotos.esperado - totalVotos.recibido !== 1 ? "s" : ""}{" "}
+                  por recibirse.
+                </p>
+              ) : totalVotos.recibido > totalVotos.esperado ? (
+                <p className="text-danger fw-bold">
+                  ⚠️ Se recibieron{" "}
+                  {totalVotos.recibido - totalVotos.esperado} voto
+                  {totalVotos.recibido - totalVotos.esperado !== 1 ? "s" : ""}{" "}
+                  de más.
+                </p>
+              ) : (
+                <p className="text-success fw-bold">
+                  ✅ Todos los votos esperados han sido recibidos.
+                </p>
+              )}
+            </div>
+          )}
         </>
       ) : (
         <p className="text-center text-muted mt-4">
