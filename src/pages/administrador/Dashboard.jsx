@@ -15,17 +15,20 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [stats, setStats] = useState({
     votacionesActivas: 0,
     votosRealizados: 0,
     reportesGenerados: 0,
     usuariosRegistrados: 0,
   });
-
   const [topCandidatos, setTopCandidatos] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const handleNavigation = (path) => navigate(path);
+  const handleNavigation = (path) => {
+    navigate(path);
+    setSidebarOpen(false); // Cierra menú al navegar en móvil
+  };
 
   const handleLogout = () => {
     localStorage.removeItem("authToken");
@@ -47,7 +50,7 @@ export default function Dashboard() {
 
   const activeSection = getActiveSection();
 
-  // 🔹 Consultar estadísticas desde Supabase
+  // 🔹 Cargar estadísticas
   const fetchStats = async () => {
     setLoading(true);
     try {
@@ -64,7 +67,6 @@ export default function Dashboard() {
         .from("usuario")
         .select("*", { count: "exact", head: true });
 
-      // Si tienes tabla de reportes
       const { count: reportesGenerados } = await supabase
         .from("reporte")
         .select("*", { count: "exact", head: true })
@@ -77,7 +79,6 @@ export default function Dashboard() {
         usuariosRegistrados: usuariosRegistrados || 0,
       });
 
-      // 🔹 Top 5 candidatos más votados
       const { data: top } = await supabase
         .from("candidato")
         .select("nombre, votos_recibidos")
@@ -96,8 +97,16 @@ export default function Dashboard() {
   }, [activeSection]);
 
   return (
-    <div className="d-flex vh-100">
+    <div className="dashboard-container">
       <style>{`
+        /* ======== BASE LAYOUT ======== */
+        .dashboard-container {
+          display: flex;
+          min-height: 100vh;
+          background: #f8f9fa;
+          overflow-x: hidden;
+        }
+
         .sidebar {
           background: linear-gradient(180deg, #1a2a6c 0%, #b21f1f 100%);
           width: 280px;
@@ -110,12 +119,19 @@ export default function Dashboard() {
           top: 0;
           z-index: 1000;
           overflow-y: auto;
+          transition: left 0.3s ease-in-out;
         }
+
+        .sidebar.closed {
+          left: -280px;
+        }
+
         .sidebar-header {
           padding: 25px 20px;
           border-bottom: 1px solid rgba(255,255,255,0.1);
           text-align: center;
         }
+
         .nav-link-custom {
           color: rgba(255,255,255,0.8);
           padding: 15px 20px;
@@ -130,27 +146,83 @@ export default function Dashboard() {
           width: 100%;
           text-align: left;
         }
+
         .nav-link-custom:hover,
         .nav-link-custom.active {
           color: white;
           background: rgba(255,255,255,0.1);
           border-left-color: #fdbb2d;
         }
+
         .logout-section {
           margin-top: auto;
           padding-top: 20px;
           border-top: 1px solid rgba(255,255,255,0.1);
         }
+
         .main-content {
           flex: 1;
-          background: #f8f9fa;
           margin-left: 280px;
-          padding: 0;
-          overflow-y: auto;
+          transition: margin-left 0.3s ease-in-out;
         }
+
         .content-area {
           padding: 30px;
         }
+
+        /* ======== RESPONSIVE ======== */
+        .menu-toggle {
+          display: none;
+          position: fixed;
+          top: 15px;
+          left: 15px;
+          background: #b21f1f;
+          color: white;
+          border: none;
+          padding: 10px 15px;
+          border-radius: 5px;
+          z-index: 1100;
+          font-size: 1.2rem;
+          cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+          .sidebar {
+            width: 70%;
+            left: -100%;
+          }
+
+          .sidebar.open {
+            left: 0;
+          }
+
+          .main-content {
+            margin-left: 0;
+          }
+
+          .menu-toggle {
+            display: block;
+          }
+
+          .content-area {
+            padding: 15px;
+          }
+
+          .stats-grid {
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+          }
+
+          .chart-container {
+            padding: 15px;
+          }
+
+          .welcome-card h2 {
+            font-size: 1.2rem;
+          }
+        }
+
+        /* ======== CARDS & CONTENT ======== */
         .welcome-card {
           background: linear-gradient(135deg, #1a2a6c, #b21f1f);
           color: white;
@@ -159,12 +231,14 @@ export default function Dashboard() {
           margin-bottom: 30px;
           box-shadow: 0 5px 15px rgba(0,0,0,0.2);
         }
+
         .stats-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
           gap: 20px;
           margin-bottom: 30px;
         }
+
         .stat-card {
           background: white;
           border-radius: 12px;
@@ -173,7 +247,9 @@ export default function Dashboard() {
           text-align: center;
           transition: transform 0.3s;
         }
+
         .stat-card:hover { transform: translateY(-5px); }
+
         .chart-container {
           background: white;
           border-radius: 12px;
@@ -182,8 +258,13 @@ export default function Dashboard() {
         }
       `}</style>
 
-      {/* Sidebar */}
-      <div className="sidebar">
+      {/* 🔹 Botón menú móvil */}
+      <button className="menu-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
+        ☰
+      </button>
+
+      {/* 🔹 Sidebar */}
+      <div className={`sidebar ${sidebarOpen ? "open" : "closed"}`}>
         <div className="sidebar-header">
           <i className="fas fa-church fa-2x mb-2"></i>
           <h5 className="fw-bold">ASAMBLEAS DE DIOS</h5>
@@ -223,7 +304,7 @@ export default function Dashboard() {
         </nav>
       </div>
 
-      {/* Contenido */}
+      {/* 🔹 Contenido */}
       <div className="main-content">
         <div className="content-area">
           {activeSection === "inicio" && (
@@ -260,9 +341,7 @@ export default function Dashboard() {
 
                   {/* 📊 Top candidatos */}
                   <div className="chart-container">
-                    <h5 className="fw-bold mb-3">
-                      Top 5 Candidatos con más votos
-                    </h5>
+                    <h5 className="fw-bold mb-3">Top 5 Candidatos con más votos</h5>
                     {topCandidatos.length === 0 ? (
                       <p className="text-muted">No hay candidatos con votos aún.</p>
                     ) : (
@@ -281,7 +360,6 @@ export default function Dashboard() {
               )}
             </>
           )}
-
           {activeSection !== "inicio" && (
             <div className="route-content">
               <Outlet />

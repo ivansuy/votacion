@@ -20,7 +20,6 @@ export default function ResultadosVotacion() {
 
   const fetchResultados = async () => {
     try {
-      // 1️⃣ Buscar votación activa
       const { data: votacion, error: votacionError } = await supabase
         .from("votacion")
         .select("*")
@@ -36,11 +35,8 @@ export default function ResultadosVotacion() {
       }
 
       setVotacionActiva(votacion);
-
-      // 🔹 Usamos el campo correcto: total_votantes
       const totalEsperado = votacion.total_votantes || 0;
 
-      // 2️⃣ Buscar ronda activa
       const { data: ronda, error: rondaError } = await supabase
         .from("ronda")
         .select("*")
@@ -57,34 +53,19 @@ export default function ResultadosVotacion() {
 
       setRondaActiva(ronda);
 
-      // 3️⃣ Traer candidatos
-      const { data: candidatos, error: candidatosError } = await supabase
+      const { data: candidatos } = await supabase
         .from("candidato")
         .select("id_candidato, nombre, id_cargo")
         .eq("id_votacion", votacion.id_votacion)
         .or("id_cargo.is.null,nombre.eq.Voto Nulo");
 
-      if (candidatosError) {
-        console.error("Error al cargar candidatos:", candidatosError.message);
-        setLoading(false);
-        return;
-      }
-
-      // 4️⃣ Obtener votos de la ronda activa
-      const { data: votos, error: votosError } = await supabase
+      const { data: votos } = await supabase
         .from("voto")
         .select("id_candidato, es_nulo")
         .eq("id_ronda", ronda.id_ronda);
 
-      if (votosError) {
-        console.error("Error al cargar votos:", votosError.message);
-        setLoading(false);
-        return;
-      }
-
-      // 5️⃣ Contar votos
       const conteo = {};
-      votos.forEach((v) => {
+      votos?.forEach((v) => {
         if (v.es_nulo) {
           conteo["nulo"] = (conteo["nulo"] || 0) + 1;
         } else {
@@ -92,7 +73,6 @@ export default function ResultadosVotacion() {
         }
       });
 
-      // 6️⃣ Unir nombre con número de votos
       const resultadosFinales = candidatos.map((c) => ({
         nombre: c.nombre,
         votos:
@@ -101,19 +81,16 @@ export default function ResultadosVotacion() {
             : conteo[c.id_candidato] || 0,
       }));
 
-      // 7️⃣ Ordenar resultados
       const ordenados = [
         ...resultadosFinales.filter((r) => r.nombre !== "Voto Nulo"),
         ...resultadosFinales.filter((r) => r.nombre === "Voto Nulo"),
       ];
 
-      // 8️⃣ Calcular total real
       const totalVotosRecibidos = ordenados.reduce(
         (sum, r) => sum + r.votos,
         0
       );
 
-      // Guardar resultados y totales
       setResultados(ordenados);
       setTotalVotos({ esperado: totalEsperado, recibido: totalVotosRecibidos });
       setLoading(false);
@@ -123,7 +100,6 @@ export default function ResultadosVotacion() {
     }
   };
 
-  // 🔁 Actualiza cada 2 segundos
   useEffect(() => {
     fetchResultados();
     const interval = setInterval(fetchResultados, 2000);
@@ -131,19 +107,74 @@ export default function ResultadosVotacion() {
   }, []);
 
   return (
-    <div className="container py-5">
-      <h2 className="text-center mb-4">🗳️ Resultados en Tiempo Real</h2>
+    <div className="resultados-container">
+      <style>{`
+        .resultados-container {
+          padding: 1.5rem;
+          max-width: 1000px;
+          margin: 0 auto;
+        }
+
+        .resultados-header {
+          background: linear-gradient(135deg, #1a2a6c, #b21f1f);
+          color: white;
+          border-radius: 20px;
+          padding: 2rem;
+          text-align: center;
+          margin-bottom: 2rem;
+          box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .resultados-header h2 {
+          font-weight: 700;
+          margin-bottom: 0.5rem;
+        }
+
+        .card {
+          border-radius: 15px;
+          box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+
+        .list-group-item {
+          border: none;
+          border-radius: 10px;
+          margin-bottom: 0.4rem;
+          background: #f8f9fa;
+          box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .badge {
+          font-size: 0.9rem;
+          padding: 0.5em 0.8em;
+        }
+
+        .text-warning {
+          color: #e4a11b !important;
+        }
+
+        .text-success {
+          color: #28a745 !important;
+        }
+      `}</style>
+
+      {/* 🔹 Encabezado */}
+      <div className="resultados-header">
+        <i className="fas fa-chart-bar fa-3x mb-3"></i>
+        <h2>Resultados en Tiempo Real</h2>
+        <p>Monitorea los votos recibidos durante la ronda actual.</p>
+      </div>
 
       {loading ? (
         <p className="text-center text-muted">Cargando resultados...</p>
       ) : votacionActiva && rondaActiva ? (
-        <>
+        <div className="card p-4">
           <h4 className="text-center text-primary mb-3">
-            {votacionActiva.titulo} — Ronda {rondaActiva.numero_de_ronda} (
-            {rondaActiva.estado})
+            {votacionActiva.titulo} —{" "}
+            <span className="text-dark">
+              Ronda {rondaActiva.numero_de_ronda} ({rondaActiva.estado})
+            </span>
           </h4>
 
-          {/* 🔹 Lista de resultados */}
           <ul className="list-group mb-4">
             {resultados.map((res, i) => (
               <li
@@ -152,7 +183,7 @@ export default function ResultadosVotacion() {
                   res.nombre === "Voto Nulo" ? "bg-light" : ""
                 }`}
               >
-                {res.nombre}
+                <span className="fw-semibold">{res.nombre}</span>
                 <span
                   className={`badge ${
                     res.nombre === "Voto Nulo"
@@ -166,8 +197,8 @@ export default function ResultadosVotacion() {
             ))}
           </ul>
 
-          {/* 🔹 Gráfica */}
-          <div style={{ width: "100%", height: 300 }}>
+          {/* 🔹 Gráfica de barras */}
+          <div style={{ width: "100%", height: 320 }}>
             <ResponsiveContainer>
               <BarChart
                 data={resultados}
@@ -178,16 +209,12 @@ export default function ResultadosVotacion() {
                 <YAxis allowDecimals={false} />
                 <Tooltip />
                 <Legend />
-                <Bar
-                  dataKey="votos"
-                  fill="#007bff"
-                  label={{ position: "top" }}
-                />
+                <Bar dataKey="votos" fill="#b21f1f" label={{ position: "top" }} />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
-          {/* 🔹 Texto informativo debajo de la gráfica */}
+          {/* 🔹 Texto de estado de votos */}
           {totalVotos.esperado > 0 && (
             <div className="text-center mt-3">
               {totalVotos.recibido < totalVotos.esperado ? (
@@ -198,10 +225,8 @@ export default function ResultadosVotacion() {
                 </p>
               ) : totalVotos.recibido > totalVotos.esperado ? (
                 <p className="text-danger fw-bold">
-                  ⚠️ Se recibieron{" "}
-                  {totalVotos.recibido - totalVotos.esperado} voto
-                  {totalVotos.recibido - totalVotos.esperado !== 1 ? "s" : ""}{" "}
-                  de más.
+                  ⚠️ Se recibieron {totalVotos.recibido - totalVotos.esperado} voto
+                  {totalVotos.recibido - totalVotos.esperado !== 1 ? "s" : ""} de más.
                 </p>
               ) : (
                 <p className="text-success fw-bold">
@@ -210,11 +235,11 @@ export default function ResultadosVotacion() {
               )}
             </div>
           )}
-        </>
+        </div>
       ) : (
-        <p className="text-center text-muted mt-4">
+        <div className="alert alert-info text-center">
           No hay votación activa ni ronda en curso.
-        </p>
+        </div>
       )}
     </div>
   );

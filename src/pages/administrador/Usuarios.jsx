@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../Config/supabaseClient";
 
+/* ===== Componente de Modal ===== */
 function ModalAlert({ show, type, title, message, onClose, onConfirm }) {
   if (!show) return null;
 
@@ -27,7 +28,7 @@ function ModalAlert({ show, type, title, message, onClose, onConfirm }) {
     >
       <div
         className="card shadow-lg text-center"
-        style={{ width: "420px", borderRadius: "10px" }}
+        style={{ width: "420px", borderRadius: "12px" }}
       >
         <div className={`card-header fw-bold ${colors[type]}`}>
           {icons[type]} {title}
@@ -62,6 +63,7 @@ function ModalAlert({ show, type, title, message, onClose, onConfirm }) {
   );
 }
 
+/* ===== Página principal ===== */
 export default function Usuarios() {
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -70,7 +72,6 @@ export default function Usuarios() {
   const [telefono, setTelefono] = useState("");
   const [contrasena, setContrasena] = useState("");
 
-  // 🔹 Estado para el modal
   const [modal, setModal] = useState({
     show: false,
     type: "info",
@@ -83,7 +84,6 @@ export default function Usuarios() {
     setModal({ show: true, type, title, message, onConfirm });
   const closeModal = () => setModal({ ...modal, show: false });
 
-  // 🔹 Cargar usuarios
   const fetchUsuarios = async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -105,7 +105,6 @@ export default function Usuarios() {
     fetchUsuarios();
   }, []);
 
-  // 🔹 Crear usuario
   const handleCrearUsuario = async () => {
     if (!nombre.trim() || !contrasena.trim()) {
       showModal("warning", "Datos incompletos", "Debes llenar el nombre y la contraseña.");
@@ -134,7 +133,6 @@ export default function Usuarios() {
     fetchUsuarios();
   };
 
-  // 🔹 Eliminar usuario
   const handleEliminar = (id_usuario, nombreUsuario) => {
     showModal(
       "confirm",
@@ -159,13 +157,91 @@ export default function Usuarios() {
   };
 
   return (
-    <div className="container py-4">
-      <h3>Gestión de Usuarios</h3>
+    <div className="usuarios-container">
+      <style>{`
+        .usuarios-container {
+          padding: 1.5rem;
+          max-width: 1100px;
+          margin: 0 auto;
+        }
 
-      {/* Formulario */}
-      <div className="card mb-4 shadow-sm">
+        .usuarios-header {
+          background: linear-gradient(135deg, #1a2a6c, #b21f1f);
+          color: white;
+          border-radius: 20px;
+          padding: 2rem;
+          text-align: center;
+          margin-bottom: 2rem;
+          box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .usuarios-header h2 {
+          font-weight: 700;
+          margin-bottom: 0.5rem;
+        }
+
+        .card {
+          border: none;
+          border-radius: 15px;
+          box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+
+        .btn-primary {
+          background: linear-gradient(135deg, #1a2a6c, #b21f1f);
+          border: none;
+          transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 10px rgba(178,31,31,0.3);
+        }
+
+        .table {
+          border-radius: 10px;
+          overflow: hidden;
+          background: white;
+        }
+
+        .table th {
+          background: #f8f9fa;
+          color: #343a40;
+          font-weight: 600;
+        }
+
+        .table tbody tr:hover {
+          background-color: #f1f1f1;
+          transition: background 0.3s ease;
+        }
+
+        .form-control {
+          border-radius: 10px;
+          border: 1px solid #dee2e6;
+          transition: border-color 0.3s;
+        }
+
+        .form-control:focus {
+          border-color: #b21f1f;
+          box-shadow: 0 0 0 0.2rem rgba(178,31,31,0.25);
+        }
+
+        h5 {
+          font-weight: 600;
+          margin-bottom: 1rem;
+        }
+      `}</style>
+
+      {/* 🔹 Encabezado */}
+      <div className="usuarios-header">
+        <i className="fas fa-users fa-3x mb-3"></i>
+        <h2>Gestión de Usuarios</h2>
+        <p>Administra los usuarios registrados dentro del sistema de votación.</p>
+      </div>
+
+      {/* 🔹 Formulario de creación */}
+      <div className="card mb-4">
         <div className="card-body">
-          <h5>Crear Usuario</h5>
+          <h5>Crear nuevo usuario</h5>
           <div className="row g-2">
             <div className="col-md-4">
               <input
@@ -194,8 +270,9 @@ export default function Usuarios() {
                 onChange={(e) => setContrasena(e.target.value)}
               />
             </div>
-            <div className="col-12 mt-3">
-              <button className="btn btn-primary" onClick={handleCrearUsuario}>
+            <div className="col-12 mt-3 text-end">
+              <button className="btn btn-primary px-4" onClick={handleCrearUsuario}>
+                <i className="fas fa-user-plus me-2"></i>
                 Crear Usuario
               </button>
             </div>
@@ -203,8 +280,8 @@ export default function Usuarios() {
         </div>
       </div>
 
-      {/* Tabla de usuarios */}
-      <div className="card shadow-sm">
+      {/* 🔹 Tabla de usuarios */}
+      <div className="card">
         <div className="card-body">
           <h5 className="card-title">Usuarios registrados</h5>
 
@@ -216,8 +293,8 @@ export default function Usuarios() {
             </div>
           ) : (
             <div className="table-responsive mt-3">
-              <table className="table table-hover align-middle">
-                <thead className="table-light">
+              <table className="table table-hover align-middle text-center">
+                <thead>
                   <tr>
                     <th>Nombre</th>
                     <th>Teléfono</th>
@@ -230,17 +307,14 @@ export default function Usuarios() {
                     <tr key={u.id_usuario}>
                       <td>{u.nombre}</td>
                       <td>{u.telefono || "—"}</td>
-                      <td>
-                        {u.fecha
-                          ? new Date(u.fecha).toLocaleDateString()
-                          : "—"}
-                      </td>
+                      <td>{u.fecha ? new Date(u.fecha).toLocaleDateString() : "—"}</td>
                       <td>
                         <button
                           className="btn btn-sm btn-outline-danger"
                           onClick={() => handleEliminar(u.id_usuario, u.nombre)}
                         >
-                          🗑️ Eliminar
+                          <i className="fas fa-trash-alt me-1"></i>
+                          Eliminar
                         </button>
                       </td>
                     </tr>
@@ -252,7 +326,7 @@ export default function Usuarios() {
         </div>
       </div>
 
-      {/* Modal global de alertas */}
+      {/* 🔹 Modal de alertas */}
       <ModalAlert
         show={modal.show}
         type={modal.type}

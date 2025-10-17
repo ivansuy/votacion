@@ -11,7 +11,6 @@ export default function CrearReporte() {
   const [loading, setLoading] = useState(true);
   const [tituloVotacion, setTituloVotacion] = useState("");
 
-  // 🔹 Cargar votaciones cerradas
   const fetchVotaciones = async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -24,7 +23,6 @@ export default function CrearReporte() {
     setLoading(false);
   };
 
-  // 🔹 Cargar detalle de una votación seleccionada
   const fetchDetalleVotacion = async (id_votacion) => {
     try {
       setDetalles([]);
@@ -59,7 +57,6 @@ export default function CrearReporte() {
         votos: cand.votos_recibidos || 0,
       }));
 
-      // 🔽 Orden jerárquico exacto solicitado
       const ordenJerarquico = [
         "presidente",
         "vicepresidente",
@@ -73,17 +70,14 @@ export default function CrearReporte() {
         "no asignado",
       ];
 
-      // 🧠 Función para normalizar texto
       const normalizar = (texto) =>
         texto
           ?.toString()
           .toLowerCase()
           .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "") // quita tildes
-          .replace(/\s+/g, " ") // limpia espacios extra
+          .replace(/[\u0300-\u036f]/g, "")
           .trim();
 
-      // 🧩 Función para obtener posición en jerarquía
       const obtenerIndiceCargo = (cargo) => {
         const limpio = normalizar(cargo);
         for (let i = 0; i < ordenJerarquico.length; i++) {
@@ -93,7 +87,6 @@ export default function CrearReporte() {
         return ordenJerarquico.length;
       };
 
-      // 📋 Ordenar según jerarquía exacta
       const resultadosOrdenados = [...resultadosFinales].sort(
         (a, b) => obtenerIndiceCargo(a.cargo) - obtenerIndiceCargo(b.cargo)
       );
@@ -104,10 +97,8 @@ export default function CrearReporte() {
     }
   };
 
-  // 🔹 Generar PDF
   const generarPDF = () => {
     const fechaActual = new Date().toLocaleDateString();
-
     const cuerpoTabla = [
       [
         { text: "Candidato", style: "tableHeader" },
@@ -184,13 +175,82 @@ export default function CrearReporte() {
   if (loading) return <div className="text-center mt-5">Cargando reportes...</div>;
 
   return (
-    <div className="container mt-4">
-      <h3>📊 Reportes y Auditoría</h3>
-      <hr />
+    <div className="crear-reporte-container">
+      <style>{`
+        .crear-reporte-container {
+          padding: 1.5rem;
+          max-width: 1100px;
+          margin: 0 auto;
+        }
 
-      {/* Tabla de votaciones */}
-      <table className="table table-bordered table-hover align-middle">
-        <thead className="table-light">
+        .reporte-header {
+          background: linear-gradient(135deg, #1a2a6c, #b21f1f);
+          color: white;
+          border-radius: 20px;
+          padding: 2rem;
+          text-align: center;
+          margin-bottom: 2rem;
+          box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .reporte-header h2 {
+          font-weight: 700;
+          margin-bottom: 0.5rem;
+        }
+
+        .reporte-header p {
+          opacity: 0.9;
+        }
+
+        .table {
+          border-radius: 10px;
+          overflow: hidden;
+          background: white;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .table th {
+          background: #f8f9fa;
+          color: #343a40;
+          font-weight: 600;
+        }
+
+        .table tbody tr:hover {
+          background-color: #f1f1f1;
+          transition: background 0.3s ease;
+        }
+
+        .btn-primary {
+          background: linear-gradient(135deg, #1a2a6c, #b21f1f);
+          border: none;
+          transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 10px rgba(178,31,31,0.3);
+        }
+
+        .btn-outline-secondary:hover {
+          transform: translateY(-1px);
+        }
+
+        h5 {
+          font-weight: 600;
+          margin-top: 1.5rem;
+        }
+      `}</style>
+
+      {/* 🔹 Encabezado */}
+      <div className="reporte-header">
+        <i className="fas fa-chart-line fa-3x mb-3"></i>
+        <h2>Reportes y Auditoría</h2>
+        <p>Consulta, descarga y audita los resultados de cada votación realizada.</p>
+      </div>
+
+      {/* 🔹 Tabla de votaciones */}
+      <table className="table table-bordered table-hover align-middle text-center">
+        <thead>
           <tr>
             <th>Título</th>
             <th>Fecha</th>
@@ -201,7 +261,7 @@ export default function CrearReporte() {
         <tbody>
           {votaciones.length === 0 ? (
             <tr>
-              <td colSpan="4" className="text-center">
+              <td colSpan="4" className="text-center py-4">
                 No hay votaciones registradas.
               </td>
             </tr>
@@ -225,12 +285,12 @@ export default function CrearReporte() {
         </tbody>
       </table>
 
-      {/* Resultados detallados */}
+      {/* 🔹 Resultados detallados */}
       {votacionSeleccionada && (
         <div className="mt-5">
           <h5>🧾 Resultados de la votación</h5>
-          <table className="table table-striped table-bordered mt-3">
-            <thead className="table-light">
+          <table className="table table-striped table-bordered mt-3 text-center">
+            <thead>
               <tr>
                 <th>Candidato</th>
                 <th>Cargo</th>
@@ -240,7 +300,7 @@ export default function CrearReporte() {
             <tbody>
               {detalles.length === 0 ? (
                 <tr>
-                  <td colSpan="3" className="text-center">
+                  <td colSpan="3" className="text-center py-3">
                     No hay candidatos electos o votos registrados.
                   </td>
                 </tr>
@@ -264,7 +324,7 @@ export default function CrearReporte() {
             </tbody>
           </table>
 
-          <div className="d-flex gap-2">
+          <div className="d-flex gap-2 justify-content-center mt-3">
             <button
               className="btn btn-outline-secondary"
               onClick={() => {
